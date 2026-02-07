@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ThryftAiServer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+39f8a92e0ba76c9c0ae717d06c23a7c443a84bef")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0ce3bce3ea5ae3a25fce2e40b0036b07661c3665")]
 [assembly: System.Reflection.AssemblyProductAttribute("ThryftAiServer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ThryftAiServer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
