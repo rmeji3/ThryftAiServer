@@ -7,30 +7,16 @@ using System.Text.Json;
 
 namespace ThryftAiServer.Services.OutfitBuilder;
 
-// Structured classes for vibe analysis
-public class VibeRequirement
-{
-    public string Category { get; set; } = string.Empty;
-    public string SearchTerms { get; set; } = string.Empty;
-    public string Reasoning { get; set; } = string.Empty;
-}
-
-public class VibeAnalysis
-{
-    public string OverallTheme { get; set; } = string.Empty;
-    public string StylistReasoning { get; set; } = string.Empty;
-    public List<int> SelectedProductIds { get; set; } = new();
-}
 
 // This service builds outfits based on a vibe using the categorized fashion dataset.
 public class OutfitBuilderService(
     Kernel kernel,
-    AppDbContext dbContext,
-    ILogger<OutfitBuilderService> logger)
+    AppDbContext dbContext
+    )
 {
     public async Task<List<FashionProduct>> GetOutfitRecommendationsAsync(string vibe, string? gender = null)
     {
-        // 1. Fetch entire inventory (since it's downsampled to ~150 items)
+        // first we fetch the entire inventory since it's only like 150 items
         var query = dbContext.FashionProducts.AsQueryable();
         if (!string.IsNullOrEmpty(gender))
         {
@@ -38,24 +24,23 @@ public class OutfitBuilderService(
         }
         var inventory = await query.ToListAsync();
 
-        if (inventory.Count == 0) return new List<FashionProduct>();
+        if (inventory.Count == 0) return new List<FashionProduct>(); // if no inventory, return empty list
 
-        // 2. Use AI as a Personal Shopper to pick from ACTUAL inventory
+        // then use AI as a Personal Shopper to pick from inventory
         var selection = await PickBestOutfitFromInventoryAsync(vibe, inventory);
         
-        // 3. Map selected IDs back to products
+        // map selected IDs back to products
         var outfit = inventory
             .Where(p => selection.SelectedProductIds.Contains(p.Id))
             .ToList();
 
-        // 4. Fallback if AI selection failed
+        // if we have no ai results then just give random items
         if (outfit.Count == 0)
         {
-            logger.LogWarning("AI failed to select items. Using random fallback.");
             return inventory.OrderBy(r => Guid.NewGuid()).Take(4).ToList();
         }
 
-        // Decorate metadata with the overall theme reasoning
+        // add some metadata with the overall theme reasoning, we can use this to display the reasoning in the frontend
         foreach (var item in outfit)
         {
             item.Metadata = selection.StylistReasoning;
@@ -70,24 +55,24 @@ public class OutfitBuilderService(
         {
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
-            // Create a summarized inventory string for the prompt
+            // create a summarized inventory string for the prompt
             var itemsList = string.Join("\n", inventory.Select(p => $"ID: {p.Id} | {p.ProductName} ({p.MasterCategory}/{p.Category}) - {p.Description}"));
 
             var prompt = $$"""
-                          You are an elite personal stylist for high-profile clients. 
-                          Your goal is to "hand-pick" a perfectly cohesive outfit from the available boutique inventory based on the user's vibe.
+                          You are a professional personal stylist for clients with a strong sense of style. 
+                          Your goal is to "hand-pick" a perfectly paired outfit from the available inventory based on the user's vibe.
                           
                           User Vibe: "{{vibe}}"
                           
-                          AVAILABLE INVENTORY:
+                          available inventory:
                           {{itemsList}}
                           
-                          TASK:
-                          1. Pick 3 to 5 items that create a COMPLETE and STUNNING look.
-                          2. CRITICAL: You MUST include AT LEAST one Top, one Bottom, and matching Footwear/Shoes (if available in inventory).
-                          3. Ensure the styles, colors, and vibes of the picked items are perfectly harmonized.
+                          task:
+                          1. Pick 3 to 5 items that create an outfit that matches the user's vibe. make sure the outfit matches!!!
+                          2. must: include AT LEAST one Top, one Bottom, and matching Footwear/Shoes (if available in inventory).
+                          3. make sure the styles, colors, and vibes of the picked items are perfectly matched.
                           
-                          Return ONLY a JSON object:
+                          Return only a JSON object:
                           {
                             "OverallTheme": "A catchy name for this look",
                             "StylistReasoning": "A 2-sentence explanation of why these specific pieces work together for the requested vibe",
@@ -105,7 +90,6 @@ public class OutfitBuilderService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error in AI personal shopper selection");
             return new VibeAnalysis();
         }
     }

@@ -11,17 +11,21 @@ using ThryftAiServer.Models;
 [AllowAnonymous]
 public class OutfitBuilderController : ControllerBase
 {
-    private readonly OutfitBuilderService _outfitBuilderService;
+    OutfitBuilderService outfitBuilderService;
 
     public OutfitBuilderController(OutfitBuilderService outfitBuilderService)
     {
-        _outfitBuilderService = outfitBuilderService;
+        this.outfitBuilderService = outfitBuilderService;
     }
 
     [HttpGet]
     public async Task<ActionResult<List<FashionProduct>>> GetOutfitRecommendations([FromQuery] string vibe, [FromQuery] string? gender)
     {
-        var recommendations = await _outfitBuilderService.GetOutfitRecommendationsAsync(vibe, gender);
-        return recommendations.Any() ? Ok(recommendations) : NotFound("No matching fashion items found for this vibe.");
+        var recommendations = await outfitBuilderService.GetOutfitRecommendationsAsync(vibe, gender);
+        if (recommendations.Any())
+        {
+            return Ok(recommendations);
+        }
+        return NotFound("No matching fashion items found for this vibe.");
     }
 }

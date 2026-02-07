@@ -2,34 +2,23 @@ using Microsoft.AspNetCore.Mvc;
 using ThryftAiServer.Data.App;
 using ThryftAiServer.Models;
 using ThryftAiServer.Services.Listing;
+using ThryftAiServer.Dtos;
 
 namespace ThryftAiServer.Controllers;
 
-public class CreateListingDto
-{
-    public string Name { get; set; } = string.Empty;
-    public decimal Price { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public string ImageUrl { get; set; } = string.Empty;
-    public string? Category { get; set; }
-    public string? MasterCategory { get; set; }
-    public string? Gender { get; set; }
-    public string? Color { get; set; }
-}
+
 
 [ApiController]
 [Route("api/[controller]")]
 public class ListingController(
     ListingAutofillService autofillService,
-    AppDbContext dbContext,
-    ILogger<ListingController> logger) : ControllerBase
+    AppDbContext dbContext
+    ) : ControllerBase
 {
+    // this endpoint is used to get autofill the images description
     [HttpPost("autofill")]
     public async Task<ActionResult<FashionProduct>> GetAutofillInfo(IFormFile file)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest("No file uploaded.");
-
         try
         {
             var result = await autofillService.GetAutofillDataAsync(file);
@@ -37,7 +26,7 @@ public class ListingController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error generating autofill data");
+            Console.WriteLine($"Error generating autofill data: {ex.Message}");
             return StatusCode(500, $"Internal server error: {ex.Message}");
         }
     }
@@ -47,7 +36,7 @@ public class ListingController(
     {
         try
         {
-            var product = new FashionProduct
+            var product = new FashionProduct // map the dto to model
             {
                 ProductName = dto.Name,
                 Price = dto.Price,
@@ -67,7 +56,7 @@ public class ListingController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error creating listing");
+            Console.WriteLine($"Error creating listing: {ex.Message}");
             return StatusCode(500, "An error occurred while saving your listing.");
         }
     }

@@ -7,15 +7,14 @@ namespace ThryftAiServer.Services.Discovery;
 
 public class VisualSearchService(
     ProductEnrichmentService enrichmentService,
-    AppDbContext dbContext,
-    ILogger<VisualSearchService> logger)
+    AppDbContext AppDbContext
+    )
 {
     public async Task<List<FashionProduct>> SearchByImageAsync(byte[] imageBytes)
     {
-        logger.LogInformation("Starting visual search analysis...");
+        Console.WriteLine("Starting visual search analysis...");
 
-        // 1. Convert Image to a "Searchable Vibe" using existing AI vision engine
-        // We reuse the enricher but we only care about the descriptive properties
+        // convert image to a "Searchable Vibe" string using existing AI vision engine
         var analysis = await enrichmentService.AnalyzeImageAsync(imageBytes, "visual_search_session");
         
         var searchQualities = new List<string> 
@@ -26,7 +25,7 @@ public class VisualSearchService(
             analysis.MasterCategory ?? ""
         };
         
-        // Add individual tokens from the description to broaden the search
+        // add individual tokens from the description to broaden the search
         if (!string.IsNullOrEmpty(analysis.Description))
         {
             var tokens = analysis.Description.Split(' ')
@@ -35,11 +34,12 @@ public class VisualSearchService(
             searchQualities.AddRange(tokens);
         }
 
-        logger.LogInformation("Visual Search Terms: {Terms}", string.Join(", ", searchQualities));
+        Console.WriteLine($"Visual Search Terms: {string.Join(", ", searchQualities)}");
 
-        // 2. Perform Keyword Search against our enriched database
-        var inventory = await dbContext.FashionProducts.ToListAsync();
+        // perform keyword search against our db
+        var inventory = await AppDbContext.FashionProducts.ToListAsync();
 
+        // rank items by how well they match the search qualities
         var results = inventory
             .Select(p => {
                 double score = 0;
@@ -63,7 +63,7 @@ public class VisualSearchService(
             .Take(10)
             .ToList();
 
-        logger.LogInformation("Visual search returned {Count} matches.", results.Count);
+        Console.WriteLine($"Visual search returned {results.Count} matches.");
         return results;
     }
 }

@@ -14,20 +14,17 @@ public class MultiVisualOutfitRequest
 [ApiController]
 [Route("api/[controller]")]
 public class VisualOutfitController(
-    VisualOutfitBuilderService visualOutfitService,
-    ILogger<VisualOutfitController> logger) : ControllerBase
+    VisualOutfitBuilderService visualOutfitService
+    ) : ControllerBase
 {
-    [HttpPost("complete-look")]
+    [HttpPost("complete-look")]// this endpoint is used to complete a look from uploading images of your current outfit
     public async Task<ActionResult<List<FashionProduct>>> CompleteLook([FromForm] MultiVisualOutfitRequest request)
     {
-        if (request.Files == null || request.Files.Count == 0)
-            return BadRequest("No images were uploaded.");
-
         try
         {
             var userItems = new List<VisualOutfitBuilderService.UserVisualItem>();
 
-            for (int i = 0; i < request.Files.Count; i++)
+            for (int i = 0; i < request.Files.Count; i++)// loop through the files and add them to the list of items they currently have on
             {
                 var file = request.Files[i];
                 // Get corresponding category or default to "Apparel"
@@ -44,11 +41,15 @@ public class VisualOutfitController(
 
             var recommendations = await visualOutfitService.CompleteOutfitFromImagesAsync(userItems, request.Gender);
             
-            return recommendations.Any() ? Ok(recommendations) : NotFound("Could not find suitable items to complete this look.");
+            if (recommendations.Any())
+            {
+                return Ok(recommendations);
+            }
+            return NotFound("Could not find suitable items to complete this look :(");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error completing outfit from visual input");
+            Console.WriteLine($"Error completing outfit from visual input: {ex.Message}");
             return StatusCode(500, $"Internal server error: {ex.Message}");
         }
     }
