@@ -64,4 +64,24 @@ public class OutfitsController(
             return StatusCode(500, $"An error occurred while creating your outfit: {ex.Message}");
         }
     }
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteOutfit(int id)
+    {
+        try
+        {
+            var outfit = await dbContext.Outfits.FindAsync(id);
+            if (outfit == null)
+            {
+                return NotFound();
+            }
+            dbContext.Outfits.Remove(outfit);
+            await dbContext.SaveChangesAsync();
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting outfit: {ex.Message}");
+            return StatusCode(500, $"An error occurred while deleting your outfit: {ex.Message}");
+        }
+    }
 }
