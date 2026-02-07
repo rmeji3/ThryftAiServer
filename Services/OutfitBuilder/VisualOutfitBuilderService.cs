@@ -62,14 +62,10 @@ public class VisualOutfitBuilderService(
         using var doc = JsonDocument.Parse(json);
         var stylingPrompt = doc.RootElement.GetProperty("styling_prompt").GetString() ?? "";
 
-        // 3. Get recommendations based on the stylistic vibe
-        var recommendations = await outfitBuilderService.GetOutfitRecommendationsAsync(stylingPrompt, gender);
+        // 3. Get recommendations based ONLY on the missing categories
+        var recommendations = await outfitBuilderService.GetOutfitRecommendationsAsync(stylingPrompt, gender, missingCategories);
 
-        // 4. Deterministic Filter: Strictly ONLY include items from categories that aren't in the user's list
-        return recommendations
-            .Where(p => missingCategories.Any(missing => 
-                string.Equals(p.MasterCategory, missing, StringComparison.OrdinalIgnoreCase) ||
-                (missing == "Footwear" && p.MasterCategory == "Shoes"))) // Normalize Footwear/Shoes
-            .ToList();
+        // 4. Final filter in case AI tried to be cheeky
+        return recommendations;
     }
 }
