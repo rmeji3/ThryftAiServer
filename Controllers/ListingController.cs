@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ThryftAiServer.Data.App;
 using ThryftAiServer.Models;
 using ThryftAiServer.Services.Listing;
@@ -58,6 +59,43 @@ public class ListingController(
         {
             Console.WriteLine($"Error creating listing: {ex.Message}");
             return StatusCode(500, "An error occurred while saving your listing.");
+        }
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<FashionProduct>> GetListingById(int id)
+    {
+        try
+        {
+            var product = await dbContext.FashionProducts.FindAsync(id);
+            if (product == null)
+            {
+                return NotFound();
+            }
+            return Ok(product);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting listing: {ex.Message}");
+            return StatusCode(500, "An error occurred while getting your listing.");
+        }
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<List<FashionProduct>>> searchListings([FromQuery] string search)
+    {
+        try
+        {
+            search = search.ToLower();
+            var query = dbContext.FashionProducts.AsQueryable();
+            query = query.Where(p => p.ProductName.ToLower().Contains(search));
+            var products = await query.ToListAsync();
+            return Ok(products);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error searching listings: {ex.Message}");
+            return StatusCode(500, "An error occurred while searching your listings.");
         }
     }
 }

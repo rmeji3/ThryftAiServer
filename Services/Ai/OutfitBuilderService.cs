@@ -14,7 +14,7 @@ public class OutfitBuilderService(
     AppDbContext dbContext
     )
 {
-    public async Task<List<FashionProduct>> GetOutfitRecommendationsAsync(string vibe, string? gender = null)
+    public async Task<List<FashionProduct>> GetOutfitRecommendationsAsync(string vibe, string? gender = null, List<string>? targetCategories = null)
     {
         // first we fetch the entire inventory since it's only like 150 items
         var query = dbContext.FashionProducts.AsQueryable();
@@ -27,7 +27,7 @@ public class OutfitBuilderService(
         if (inventory.Count == 0) return new List<FashionProduct>(); // if no inventory, return empty list
 
         // then use AI as a Personal Shopper to pick from inventory
-        var selection = await PickBestOutfitFromInventoryAsync(vibe, inventory);
+        var selection = await PickBestOutfitFromInventoryAsync(vibe, inventory, targetCategories);
         
         // map selected IDs back to products
         var outfit = inventory
@@ -45,11 +45,23 @@ public class OutfitBuilderService(
         {
             item.Metadata = selection.StylistReasoning;
         }
+        
+        // sort the list in order of top, bottom, footwear, accessories
+        var categoryOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Topwear", 1 },
+            { "Bottomwear", 2 },
+            { "Footwear", 3 },
+            { "Shoes", 3 },
+            { "Accessories", 4 }
+        };
+
+        outfit = outfit.OrderBy(p => categoryOrder.TryGetValue(p.MasterCategory ?? "", out var order) ? order : 5).ToList();
 
         return outfit;
     }
 
-    private async Task<VibeAnalysis> PickBestOutfitFromInventoryAsync(string vibe, List<FashionProduct> inventory)
+    private async Task<VibeAnalysis> PickBestOutfitFromInventoryAsync(string vibe, List<FashionProduct> inventory, List<string>? targetCategories = null)
     {
         try
         {
@@ -57,10 +69,21 @@ public class OutfitBuilderService(
 
             // create a summarized inventory string for the prompt
             var itemsList = string.Join("\n", inventory.Select(p => $"ID: {p.Id} | {p.ProductName} ({p.MasterCategory}/{p.Category}) - {p.Description}"));
+            
+            // Add a hint about category naming conventions
+            itemsList += "\n(Note: 'Footwear' items are listed under the 'Shoes' MasterCategory in the inventory above)";
+
+            var categoryGoal = targetCategories != null && targetCategories.Count > 0 
+                ? $"CRITICAL: You MUST pick items strictly for these categories: {string.Join(", ", targetCategories)}."
+                : "CRITICAL: You MUST include AT LEAST one Top, one Bottom, and matching Footwear/Shoes (if available in inventory).";
+
+            var quantityGoal = targetCategories != null && targetCategories.Count > 0
+                ? $"Pick 1 to 2 items for EVERY category listed above."
+                : "Pick 3 to 5 items that create a COMPLETE and STUNNING look.";
 
             var prompt = $$"""
                           You are a professional personal stylist for clients with a strong sense of style. 
-                          Your goal is to "hand-pick" a perfectly paired outfit from the available inventory based on the user's vibe.
+                          Your goal is to "hand-pick" the best items from the available inventory based on the user's vibe.
                           
                           User Vibe: "{{vibe}}"
                           
@@ -68,14 +91,14 @@ public class OutfitBuilderService(
                           {{itemsList}}
                           
                           task:
-                          1. Pick 3 to 5 items that create an outfit that matches the user's vibe. make sure the outfit matches!!!
-                          2. must: include AT LEAST one Top, one Bottom, and matching Footwear/Shoes (if available in inventory).
+                          1. {{quantityGoal}}
+                          2. {{categoryGoal}}
                           3. make sure the styles, colors, and vibes of the picked items are perfectly matched.
                           
                           Return only a JSON object:
                           {
                             "OverallTheme": "A catchy name for this look",
-                            "StylistReasoning": "A 2-sentence explanation of why these specific pieces work together for the requested vibe",
+                            "StylistReasoning": "A 2-sentence explanation of why these specific pieces work together",
                             "SelectedProductIds": [42, 12, 85]
                           }
                           """;
