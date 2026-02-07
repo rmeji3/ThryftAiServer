@@ -172,6 +172,75 @@ public static class DataSeeder
         Console.WriteLine("Vision enrichment complete.");
     }
 
+    public static async Task MigrateFromSqliteAsync(AppDbContext postgresContext, string sqliteConnectionStr)
+    {
+        Console.WriteLine("Starting migration from local SQLite to AWS RDS...");
+
+        // Create a temporary options builder for the local SQLite DB
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        optionsBuilder.UseSqlite(sqliteConnectionStr);
+
+        using (var localContext = new AppDbContext(optionsBuilder.Options))
+        {
+            var enrichedItems = await localContext.FashionProducts
+                .Where(p => p.Metadata == "enriched_by_vision")
+                .AsNoTracking() // Important so EF doesn't get confused by tracking across contexts
+                .ToListAsync();
+
+            if (!enrichedItems.Any())
+            {
+                Console.WriteLine("No enriched items found in local SQLite to migrate.");
+                return;
+            }
+
+            Console.WriteLine($"Found {enrichedItems.Count} enriched items. Pushing to RDS...");
+
+            // Reset IDs for Postgres (let it generate new ones)
+            foreach (var item in enrichedItems)
+            {
+                item.Id = 0; 
+            }
+
+            // Check if they already exist in Postgres to prevent duplicates
+            var existingExternalIds = await postgresContext.FashionProducts
+                .Select(p => p.ExternalId)
+                .ToListAsync();
+
+            var newItems = enrichedItems
+                .Where(item => !existingExternalIds.Contains(item.ExternalId))
+                .ToList();
+
+            if (newItems.Any())
+            {
+                await postgresContext.FashionProducts.AddRangeAsync(newItems);
+                await postgresContext.SaveChangesAsync();
+                Console.WriteLine($"Successfully migrated {newItems.Count} items to AWS RDS.");
+            }
+            else
+            {
+                Console.WriteLine("All items already exist in RDS. Nothing to migrate.");
+            }
+        }
+    }
+
+    public static async Task UpdateUrlsToS3Async(AppDbContext context, string s3BaseUrl)
+    {
+        Console.WriteLine($"Updating all image URLs to point to S3: {s3BaseUrl}");
+        
+        var products = await context.FashionProducts.ToListAsync();
+        foreach (var p in products)
+        {
+            if (p.ImageUrl != null && p.ImageUrl.StartsWith("/images/"))
+            {
+                var fileName = Path.GetFileName(p.ImageUrl);
+                p.ImageUrl = $"{s3BaseUrl.TrimEnd('/')}/images/{fileName}";
+            }
+        }
+
+        await context.SaveChangesAsync();
+        Console.WriteLine("Database URLs updated to S3 successfully.");
+    }
+
     private static string MapDeepFashionCategory(string label)
     {
         label = label.ToLower();

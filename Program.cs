@@ -12,8 +12,21 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
 // Configure DB
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL") 
+                      ?? builder.Configuration.GetConnectionString("DefaultConnection") 
+                      ?? "Data Source=app.db";
+
 builder.Services.AddDbContext<ThryftAiServer.Data.App.AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db"));
+{
+    if (connectionString.Contains("Host=") || connectionString.Contains("Server="))
+    {
+        options.UseNpgsql(connectionString);
+    }
+    else
+    {
+        options.UseSqlite(connectionString);
+    }
+});
 
 // Configure Semantic Kernel
 var openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
@@ -56,6 +69,18 @@ using (var scope = app.Services.CreateScope())
 
         var kernel = services.GetRequiredService<Kernel>();
         await ThryftAiServer.Data.App.DataSeeder.EnrichWithVisionAsync(context, kernel, imagePath, limit: 500);
+        */
+
+        /* Migration complete - uncomment only if needed to re-sync
+        var isPostgres = connectionString.Contains("Host=") || connectionString.Contains("Server=");
+        if (isPostgres)
+        {
+            await ThryftAiServer.Data.App.DataSeeder.MigrateFromSqliteAsync(context, "Data Source=app.db");
+        }
+        */
+
+        /* Uncomment to update DB links to S3
+        await ThryftAiServer.Data.App.DataSeeder.UpdateUrlsToS3Async(context, "https://thryftai.s3.amazonaws.com");
         */
     }
     catch (Exception ex)
