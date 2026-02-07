@@ -1,5 +1,7 @@
 using ThryftAiServer.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 using System.Text.Json;
 
 namespace ThryftAiServer.Data.App;
@@ -79,6 +81,95 @@ public static class DataSeeder
         }
 
         Console.WriteLine("DeepFashion seeding complete.");
+    }
+
+    public static async Task EnrichWithVisionAsync(AppDbContext context, Kernel kernel, string imagePath, int limit = 50)
+    {
+        var productsToEnrich = await context.FashionProducts
+            .Where(p => p.Description!.Contains("DeepFashion")) // Only enrich generic items
+            .Take(limit)
+            .ToListAsync();
+
+        if (!productsToEnrich.Any()) return;
+
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
+        Console.WriteLine($"Enriching {productsToEnrich.Count} items with Vision AI for better search...");
+        int count = 0;
+
+        foreach (var product in productsToEnrich)
+        {
+            bool success = false;
+            int retries = 0;
+
+            while (!success && retries < 3)
+            {
+                try
+                {
+                    // Extract original filename from ExternalId (e.g. 000001_item1 -> 000001.jpg)
+                    var baseFileName = product.ExternalId!.Split('_')[0];
+                    var fullImagePath = Path.Combine(imagePath, $"{baseFileName}.jpg");
+
+                    if (!File.Exists(fullImagePath))
+                    {
+                        success = true; // Mark skip as "success" to move on
+                        continue;
+                    }
+
+                    var imageBytes = await File.ReadAllBytesAsync(fullImagePath);
+                    var chatHistory = new ChatHistory();
+                    chatHistory.AddUserMessage([
+                        new TextContent($"Analyze this clothing image. Describe it like a high-end fashion curator. Focus on style (e.g., 'Retro-inspired', 'Streetwear-ready'), material, and unique details. Return a JSON object with: 'name' (a punchy marketing name) and 'description' (a rich 1-2 sentence description). Only return the JSON."),
+                        new ImageContent(new ReadOnlyMemory<byte>(imageBytes), "image/jpeg")
+                    ]);
+
+                    var response = await chatService.GetChatMessageContentAsync(chatHistory);
+                    var json = response.Content;
+
+                    if (string.IsNullOrEmpty(json)) throw new Exception("AI returned empty response");
+
+                    // Simple JSON cleaning
+                    if (json.Contains("```")) 
+                    {
+                        var parts = json.Split("```json");
+                        if (parts.Length > 1) json = parts[1].Split("```")[0].Trim();
+                        else json = json.Split("```")[1].Split("```")[0].Trim();
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    product.ProductName = root.GetProperty("name").GetString();
+                    product.Description = root.GetProperty("description").GetString();
+                    product.Metadata = "enriched_by_vision";
+
+                    Console.WriteLine($"[{++count}/{productsToEnrich.Count}] Enriched: {product.ProductName}");
+                    success = true;
+                    
+                    // Periodic save
+                    if (count % 10 == 0) await context.SaveChangesAsync();
+
+                    // Standard delay to stay under TPM limits
+                    await Task.Delay(1000); 
+                }
+                catch (Exception ex)
+                {
+                    if (ex.Message.Contains("rate_limit") || ex.Message.Contains("429"))
+                    {
+                        retries++;
+                        Console.WriteLine($"Rate limit hit for {product.ExternalId}. Retry {retries}/3. Waiting 10s...");
+                        await Task.Delay(10000);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Failed to enrich {product.ExternalId}: {ex.Message}");
+                        success = true; // Move on for non-rate-limit errors
+                    }
+                }
+            }
+        }
+
+        await context.SaveChangesAsync();
+        Console.WriteLine("Vision enrichment complete.");
     }
 
     private static string MapDeepFashionCategory(string label)

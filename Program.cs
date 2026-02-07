@@ -22,10 +22,23 @@ var openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
 builder.Services.AddKernel()
     .AddOpenAIChatCompletion("gpt-4o-mini", openAiApiKey);
 
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // Register Outfit Services
 builder.Services.AddScoped<OutfitBuilderService>();
 
 var app = builder.Build();
+
+app.UseCors("AllowAll");
 
 // Database initialization and seeding
 using (var scope = app.Services.CreateScope())
@@ -36,9 +49,14 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<ThryftAiServer.Data.App.AppDbContext>();
         await context.Database.EnsureCreatedAsync();
 
+        /* Uncomment to seed or enrich data
         var imagePath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "train", "image");
         var annosPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "train", "annos");
         await ThryftAiServer.Data.App.DataSeeder.SeedDataAsync(context, imagePath, annosPath);
+
+        var kernel = services.GetRequiredService<Kernel>();
+        await ThryftAiServer.Data.App.DataSeeder.EnrichWithVisionAsync(context, kernel, imagePath, limit: 500);
+        */
     }
     catch (Exception ex)
     {

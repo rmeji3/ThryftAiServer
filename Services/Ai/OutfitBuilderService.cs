@@ -32,7 +32,7 @@ public class OutfitBuilderService(
             logger.LogInformation("No specific matches found for vibe '{Vibe}'. Returning general fashion items as fallback.", vibe);
             matches = await dbContext.FashionProducts
                 .Where(p => p.FashionCategory != "Home" && p.FashionCategory != "Other")
-                .OrderBy(r => Guid.NewGuid()) // Randomish variety
+                .OrderBy(r => EF.Functions.Random()) // Random variety for SQLite
                 .Take(6)
                 .ToListAsync();
         }
@@ -46,13 +46,17 @@ public class OutfitBuilderService(
         {
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+            // Give the AI our specific categories so it knows what to search for
+            var categories = "long sleeve dress, short sleeve dress, trousers, shorts, skirt, sling, vest, long sleeve top, short sleeve top, long sleeve outwear, short sleeve outwear";
+
             var prompt = $"""
-                          You are a fashion stylist. Translate a "vibe" or "feeling" into concrete fashion keywords.
+                          You are a fashion stylist. Translate a "vibe" or "feeling" into actual database categories.
                           User Vibe: "{vibe}"
                           
-                          Output a comma-separated list of 3-6 broad style keywords that might describe clothing items for this vibe.
-                          Include terms like "floral, linen, denim, blazer, sneakers".
-                          Do not include any other text, just the comma-separated terms.
+                          Available categories: {categories}
+                          
+                          Pick 3-5 keywords that characterize this vibe. At least 2 MUST be from the available categories list. 
+                          Output a simple comma-separated list. No other text.
                           """;
 
             var result = await chatCompletionService.GetChatMessageContentAsync(prompt);
