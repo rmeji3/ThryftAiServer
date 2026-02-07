@@ -82,15 +82,25 @@ public class ListingController(
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<List<FashionProduct>>> searchListings([FromQuery] string search)
+    public async Task<ActionResult<List<FashionProduct>>> searchListings([FromQuery] string? search, [FromQuery] string? category)
     {
         try
         {
-            search = search.ToLower();
             var query = dbContext.FashionProducts.AsQueryable();
-            query = query.Where(p => p.ProductName.ToLower().Contains(search));
-            var products = await query.ToListAsync();
-            return Ok(products);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchTerm = search.Trim().ToLower();
+                query = query.Where(p => p.ProductName != null && p.ProductName.ToLower().Contains(searchTerm));
+            }
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                var categoryTerm = category.Trim().ToLower();
+                query = query.Where(p => p.Category != null && p.Category.ToLower() == categoryTerm);
+            }
+
+            return Ok(query.ToList());
         }
         catch (Exception ex)
         {
