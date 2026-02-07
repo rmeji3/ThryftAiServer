@@ -60,33 +60,25 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<ThryftAiServer.Data.App.AppDbContext>();
-        await context.Database.EnsureCreatedAsync();
 
-        /* Uncomment to seed or enrich data
-        var imagePath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "train", "image");
-        var annosPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "train", "annos");
-        await ThryftAiServer.Data.App.DataSeeder.SeedDataAsync(context, imagePath, annosPath);
+        Console.WriteLine("Force-dropping table for clean migration...");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"FashionProducts\" CASCADE;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"__EFMigrationsHistory\" CASCADE;");
+        Console.WriteLine("Applying migrations to AWS RDS...");
+        await context.Database.MigrateAsync();
+        Console.WriteLine("Database schema sync successful.");
+        
+        // Seeding from CSV
+        var stylesPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "styles.csv");
+        var imagesPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "images.csv");
+        await ThryftAiServer.Data.App.DataSeeder.SeedFromCsvAsync(context, stylesPath, imagesPath);
 
-        var kernel = services.GetRequiredService<Kernel>();
-        await ThryftAiServer.Data.App.DataSeeder.EnrichWithVisionAsync(context, kernel, imagePath, limit: 500);
-        */
-
-        /* Migration complete - uncomment only if needed to re-sync
-        var isPostgres = connectionString.Contains("Host=") || connectionString.Contains("Server=");
-        if (isPostgres)
-        {
-            await ThryftAiServer.Data.App.DataSeeder.MigrateFromSqliteAsync(context, "Data Source=app.db");
-        }
-        */
-
-        /* Uncomment to update DB links to S3
-        await ThryftAiServer.Data.App.DataSeeder.UpdateUrlsToS3Async(context, "https://thryftai.s3.amazonaws.com");
-        */
+        Console.WriteLine("Data migration complete.");
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        logger.LogError(ex, "An error occurred while resetting the database.");
     }
 }
 

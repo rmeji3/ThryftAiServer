@@ -3,6 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using System.Text.Json;
+using System.Formats.Asn1;
+using CsvHelper;
+using CsvHelper.Configuration;
+using System.Globalization;
 
 namespace ThryftAiServer.Data.App;
 
@@ -241,6 +245,78 @@ public static class DataSeeder
         Console.WriteLine("Database URLs updated to S3 successfully.");
     }
 
+    public static async Task SeedFromCsvAsync(AppDbContext context, string stylesCsvPath, string imagesCsvPath)
+    {
+        Console.WriteLine("Clearing existing products for new dataset...");
+        context.FashionProducts.RemoveRange(context.FashionProducts);
+        await context.SaveChangesAsync();
+
+        Console.WriteLine("Reading CSV files...");
+
+        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            HeaderValidated = null,
+            BadDataFound = null
+        };
+
+        using var stylesReader = new StreamReader(stylesCsvPath);
+        using var csvStyles = new CsvReader(stylesReader, config);
+        var styleRecords = csvStyles.GetRecords<StyleCsvRecord>().ToList();
+
+        using var imagesReader = new StreamReader(imagesCsvPath);
+        using var csvImages = new CsvReader(imagesReader, config);
+        var imageRecords = csvImages.GetRecords<ImageCsvRecord>().ToList();
+
+        Console.WriteLine($"Found {styleRecords.Count} styles and {imageRecords.Count} images.");
+
+        // Join them
+        var imageMap = imageRecords.ToDictionary(r => Path.GetFileNameWithoutExtension(r.filename), r => r.link);
+
+        var products = new List<FashionProduct>();
+        int count = 0;
+        foreach (var style in styleRecords)
+        {
+            if (imageMap.TryGetValue(style.id, out var imageUrl))
+            {
+                products.Add(new FashionProduct
+                {
+                    ExternalId = style.id,
+                    ProductName = style.productDisplayName,
+                    Gender = style.gender,
+                    MasterCategory = style.masterCategory,
+                    Category = style.subCategory,
+                    FashionCategory = style.articleType,
+                    Color = style.baseColour,
+                    Season = style.season,
+                    Year = int.TryParse(style.year, out var y) ? y : null,
+                    Usage = style.usage,
+                    ImageUrl = imageUrl,
+                    Description = $"{style.gender} {style.articleType} in {style.baseColour} from {style.masterCategory} section."
+                });
+            }
+
+            if (products.Count >= 2000)
+            {
+                await context.FashionProducts.AddRangeAsync(products);
+                await context.SaveChangesAsync();
+                count += products.Count;
+                Console.WriteLine($"Seeded {count} records...");
+                products.Clear();
+            }
+        }
+
+        if (products.Any())
+        {
+            await context.FashionProducts.AddRangeAsync(products);
+            await context.SaveChangesAsync();
+            count += products.Count;
+        }
+
+        Console.WriteLine($"CSV Seeding complete. Total: {count}");
+    }
+
     private static string MapDeepFashionCategory(string label)
     {
         label = label.ToLower();
@@ -255,4 +331,24 @@ public static class DataSeeder
         
         return "Other";
     }
+}
+
+public class StyleCsvRecord
+{
+    public string id { get; set; }
+    public string gender { get; set; }
+    public string masterCategory { get; set; }
+    public string subCategory { get; set; }
+    public string articleType { get; set; }
+    public string baseColour { get; set; }
+    public string season { get; set; }
+    public string year { get; set; }
+    public string usage { get; set; }
+    public string productDisplayName { get; set; }
+}
+
+public class ImageCsvRecord
+{
+    public string filename { get; set; }
+    public string link { get; set; }
 }
