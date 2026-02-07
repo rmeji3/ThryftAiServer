@@ -19,9 +19,9 @@ public class OutfitBuilderController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<FashionProduct>>> GetOutfitRecommendations([FromQuery] string vibe)
+    public async Task<ActionResult<List<FashionProduct>>> GetOutfitRecommendations([FromQuery] string vibe, [FromQuery] string? gender)
     {
-        var recommendations = await _outfitBuilderService.GetOutfitRecommendationsAsync(vibe);
+        var recommendations = await _outfitBuilderService.GetOutfitRecommendationsAsync(vibe, gender);
         return recommendations.Any() ? Ok(recommendations) : NotFound("No matching fashion items found for this vibe.");
     }
 }

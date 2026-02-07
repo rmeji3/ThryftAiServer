@@ -20,4 +20,5 @@ public class FashionProduct
     public string? ImageUrl { get; set; }
     public string? Metadata { get; set; } // For any extra AI-extracted info
     public string? Brand { get; set; }
+    public decimal? Price { get; set; }
 }
