@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
 
     public DbSet<FashionProduct> FashionProducts { get; set; }
     public DbSet<Purchase> Purchases { get; set; }
+    public DbSet<Outfit> Outfits { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

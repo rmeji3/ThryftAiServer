@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ThryftAiServer.Models;
 
@@ -21,4 +22,6 @@ public class FashionProduct
     public string? Metadata { get; set; } // For any extra AI-extracted info
     public string? Brand { get; set; }
     public decimal? Price { get; set; }
+    [JsonIgnore]
+    public List<Outfit> Outfits { get; set; } = new();
 }
