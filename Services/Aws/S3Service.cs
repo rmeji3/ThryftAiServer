@@ -6,7 +6,9 @@ namespace ThryftAiServer.Services.Aws;
 
 public class S3Service(IAmazonS3 s3Client, IConfiguration configuration)
 {
-    private readonly string _bucketName = configuration["AWS:BucketName"] ?? "thryftai";
+    private readonly string _bucketName = Environment.GetEnvironmentVariable("AWS__BucketName") 
+                                          ?? configuration["AWS:BucketName"] 
+                                          ?? "thryftai";
 
     public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string contentType)
     {

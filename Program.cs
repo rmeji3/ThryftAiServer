@@ -54,7 +54,22 @@ builder.Services.AddCors(options =>
 });
 
 // Register AWS & AI Services
-builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+var awsOptions = builder.Configuration.GetAWSOptions();
+var accessKey = Environment.GetEnvironmentVariable("AWS__AccessKeyId") ?? builder.Configuration["AWS:AccessKeyId"];
+var secretKey = Environment.GetEnvironmentVariable("AWS__SecretAccessKey") ?? builder.Configuration["AWS:SecretAccessKey"];
+var region = Environment.GetEnvironmentVariable("AWS__Region") ?? builder.Configuration["AWS:Region"];
+
+if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
+{
+    awsOptions.Credentials = new Amazon.Runtime.BasicAWSCredentials(accessKey, secretKey);
+}
+
+if (!string.IsNullOrEmpty(region))
+{
+    awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(region);
+}
+
+builder.Services.AddDefaultAWSOptions(awsOptions);
 builder.Services.AddAWSService<IAmazonS3>();
 builder.Services.AddScoped<S3Service>();
 builder.Services.AddScoped<ProductEnrichmentService>();
