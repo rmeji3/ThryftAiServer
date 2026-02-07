@@ -1,6 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using ThryftAiServer.Services.OutfitBuilder;
+using ThryftAiServer.Services.Ai;
+using ThryftAiServer.Services.Aws;
+using ThryftAiServer.Services.Inventory;
+using ThryftAiServer.Services.Listing;
+using ThryftAiServer.Services.Discovery;
+using ThryftAiServer.Services.Personalization;
+using Amazon.S3;
 
 DotNetEnv.Env.Load();
 
@@ -46,41 +53,23 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Outfit Services
+// Register AWS & AI Services
+builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+builder.Services.AddAWSService<IAmazonS3>();
+builder.Services.AddScoped<S3Service>();
+builder.Services.AddScoped<ProductEnrichmentService>();
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<ListingAutofillService>();
+builder.Services.AddScoped<VisualSearchService>();
+builder.Services.AddScoped<PersonalizedRecommendationService>();
 builder.Services.AddScoped<OutfitBuilderService>();
+builder.Services.AddScoped<VisualOutfitBuilderService>();
 
 var app = builder.Build();
 
 app.UseCors("AllowAll");
 
-// Database initialization and seeding
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ThryftAiServer.Data.App.AppDbContext>();
-
-        Console.WriteLine("Force-dropping table for clean migration...");
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"FashionProducts\" CASCADE;");
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"__EFMigrationsHistory\" CASCADE;");
-        Console.WriteLine("Applying migrations to AWS RDS...");
-        await context.Database.MigrateAsync();
-        Console.WriteLine("Database schema sync successful.");
-        
-        // Seeding from CSV
-        var stylesPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "styles.csv");
-        var imagesPath = Path.Combine(app.Environment.ContentRootPath, "Data", "App", "images.csv");
-        await ThryftAiServer.Data.App.DataSeeder.SeedFromCsvAsync(context, stylesPath, imagesPath);
-
-        Console.WriteLine("Data migration complete.");
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while resetting the database.");
-    }
-}
+// No seeding needed at runtime
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

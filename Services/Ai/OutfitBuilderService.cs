@@ -3,8 +3,24 @@ using ThryftAiServer.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using System.Text.Json;
 
 namespace ThryftAiServer.Services.OutfitBuilder;
+
+// Structured classes for vibe analysis
+public class VibeRequirement
+{
+    public string Category { get; set; } = string.Empty;
+    public string SearchTerms { get; set; } = string.Empty;
+    public string Reasoning { get; set; } = string.Empty;
+}
+
+public class VibeAnalysis
+{
+    public string OverallTheme { get; set; } = string.Empty;
+    public string StylistReasoning { get; set; } = string.Empty;
+    public List<int> SelectedProductIds { get; set; } = new();
+}
 
 // This service builds outfits based on a vibe using the categorized fashion dataset.
 public class OutfitBuilderService(
@@ -12,90 +28,85 @@ public class OutfitBuilderService(
     AppDbContext dbContext,
     ILogger<OutfitBuilderService> logger)
 {
-    public async Task<List<FashionProduct>> GetOutfitRecommendationsAsync(string vibe)
+    public async Task<List<FashionProduct>> GetOutfitRecommendationsAsync(string vibe, string? gender = null)
     {
-        // 1. Use AI to extract relevant fashion keywords from the vibe
-        var searchTerms = await AnalyzeVibeAsync(vibe);
-        logger.LogInformation("Vibe '{Vibe}' analyzed into search terms: {Terms}", vibe, string.Join(", ", searchTerms));
-
-        if (searchTerms.Count == 0)
+        // 1. Fetch entire inventory (since it's downsampled to ~150 items)
+        var query = dbContext.FashionProducts.AsQueryable();
+        if (!string.IsNullOrEmpty(gender))
         {
-            searchTerms = [vibe];
+            query = query.Where(p => p.Gender == gender || p.Gender == "Unisex");
         }
+        var inventory = await query.ToListAsync();
 
-        // 2. Search FashionProducts for matching items
-        var matches = await SearchProductsAsync(searchTerms);
+        if (inventory.Count == 0) return new List<FashionProduct>();
+
+        // 2. Use AI as a Personal Shopper to pick from ACTUAL inventory
+        var selection = await PickBestOutfitFromInventoryAsync(vibe, inventory);
         
-        // 3. Fallback: If no matches found, just return a diverse set of fashion items
-        if (!matches.Any())
+        // 3. Map selected IDs back to products
+        var outfit = inventory
+            .Where(p => selection.SelectedProductIds.Contains(p.Id))
+            .ToList();
+
+        // 4. Fallback if AI selection failed
+        if (outfit.Count == 0)
         {
-            logger.LogInformation("No specific matches found for vibe '{Vibe}'. Returning general fashion items as fallback.", vibe);
-            matches = await dbContext.FashionProducts
-                .Where(p => p.FashionCategory != "Home" && p.FashionCategory != "Other")
-                .OrderBy(r => EF.Functions.Random()) // Random variety for SQLite
-                .Take(6)
-                .ToListAsync();
+            logger.LogWarning("AI failed to select items. Using random fallback.");
+            return inventory.OrderBy(r => Guid.NewGuid()).Take(4).ToList();
         }
 
-        return matches;
+        // Decorate metadata with the overall theme reasoning
+        foreach (var item in outfit)
+        {
+            item.Metadata = selection.StylistReasoning;
+        }
+
+        return outfit;
     }
 
-    private async Task<List<string>> AnalyzeVibeAsync(string vibe)
+    private async Task<VibeAnalysis> PickBestOutfitFromInventoryAsync(string vibe, List<FashionProduct> inventory)
     {
         try
         {
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
-            // Give the AI our specific categories so it knows what to search for
-            var categories = "long sleeve dress, short sleeve dress, trousers, shorts, skirt, sling, vest, long sleeve top, short sleeve top, long sleeve outwear, short sleeve outwear";
+            // Create a summarized inventory string for the prompt
+            var itemsList = string.Join("\n", inventory.Select(p => $"ID: {p.Id} | {p.ProductName} ({p.MasterCategory}/{p.Category}) - {p.Description}"));
 
-            var prompt = $"""
-                          You are a fashion stylist. Translate a "vibe" or "feeling" into actual database categories.
-                          User Vibe: "{vibe}"
+            var prompt = $$"""
+                          You are an elite personal stylist for high-profile clients. 
+                          Your goal is to "hand-pick" a perfectly cohesive outfit from the available boutique inventory based on the user's vibe.
                           
-                          Available categories: {categories}
+                          User Vibe: "{{vibe}}"
                           
-                          Pick 3-5 keywords that characterize this vibe. At least 2 MUST be from the available categories list. 
-                          Output a simple comma-separated list. No other text.
+                          AVAILABLE INVENTORY:
+                          {{itemsList}}
+                          
+                          TASK:
+                          1. Pick 3 to 5 items that create a COMPLETE and STUNNING look.
+                          2. CRITICAL: You MUST include AT LEAST one Top, one Bottom, and matching Footwear/Shoes (if available in inventory).
+                          3. Ensure the styles, colors, and vibes of the picked items are perfectly harmonized.
+                          
+                          Return ONLY a JSON object:
+                          {
+                            "OverallTheme": "A catchy name for this look",
+                            "StylistReasoning": "A 2-sentence explanation of why these specific pieces work together for the requested vibe",
+                            "SelectedProductIds": [42, 12, 85]
+                          }
                           """;
 
             var result = await chatCompletionService.GetChatMessageContentAsync(prompt);
-            var text = result.Content;
+            var json = result?.Content;
 
-            if (string.IsNullOrWhiteSpace(text)) return [vibe];
+            if (string.IsNullOrWhiteSpace(json)) return new VibeAnalysis();
+            if (json.Contains("```")) json = json.Split("```json").Last().Split("```").First().Trim();
 
-            return text.Split(',')
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .ToList();
+            return JsonSerializer.Deserialize<VibeAnalysis>(json) ?? new VibeAnalysis();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error analyzing vibe with AI");
-            return [vibe];
+            logger.LogError(ex, "Error in AI personal shopper selection");
+            return new VibeAnalysis();
         }
-    }
-
-    private async Task<List<FashionProduct>> SearchProductsAsync(List<string> searchTerms)
-    {
-        // Define which categories we want to include in an "outfit"
-        var validFashionCategories = new[] { "Tops", "Bottoms", "One-Piece", "Outerwear", "Shoes", "Accessories" };
-
-        var query = dbContext.FashionProducts
-            .Where(p => validFashionCategories.Contains(p.FashionCategory));
-
-        var fashionItems = await query.ToListAsync();
-
-        var rankedMatches = fashionItems
-            .Where(p => searchTerms.Any(term => 
-                (p.ProductName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (p.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (p.Category?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
-            ))
-            .GroupBy(p => p.FashionCategory!)
-            .SelectMany(g => g.Take(2)) // Take top 2 from each group for variety
-            .ToList();
-
-        return rankedMatches;
     }
 }

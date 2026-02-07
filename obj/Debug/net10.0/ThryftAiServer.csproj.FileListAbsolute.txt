@@ -172,3 +172,6 @@
 /Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/Sprache.dll
 /Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/Npgsql.dll
 /Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/Npgsql.EntityFrameworkCore.PostgreSQL.dll
+/Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/AWSSDK.Core.dll
+/Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/AWSSDK.Extensions.NETCore.Setup.dll
+/Users/rmeji/Desktop/Coding/ThryftAiServer/bin/Debug/net10.0/AWSSDK.S3.dll
