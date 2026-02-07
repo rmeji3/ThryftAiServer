@@ -5,7 +5,7 @@ Data/App/train.zip
 Data/App/test.zip
 Data/App/H&M-dataset-sample.csv
 
-
+bin/*
 # ENV
 .env
 
