@@ -27,7 +27,7 @@ public class DiscoveryController(
         // Get 10 random items from the inventory
         var items = await dbContext.FashionProducts
             .OrderBy(r => EF.Functions.Random())
-            .Take(10)
+            .Take(30)
             .ToListAsync();
 
         return Ok(items);
