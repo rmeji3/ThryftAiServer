@@ -8,29 +8,29 @@ namespace ThryftAiServer.Services.Inventory;
 public class InventoryService(
     S3Service s3Service,
     ProductEnrichmentService enrichmentService,
-    AppDbContext dbContext,
-    ILogger<InventoryService> logger)
+    AppDbContext dbContext
+    )
 {
     public async Task<FashionProduct> UploadAndAnalyzeProductAsync(IFormFile file)
     {
-        logger.LogInformation("Processing product upload: {FileName}", file.FileName);
+        Console.WriteLine($"Processing product upload: {file.FileName}");
 
-        // 1. Upload to S3
+        // upload to s3
         using var uploadStream = file.OpenReadStream();
         var imageUrl = await s3Service.UploadFileAsync(uploadStream, file.FileName, file.ContentType);
         
-        logger.LogInformation("Image uploaded to: {ImageUrl}", imageUrl);
+        Console.WriteLine($"Image uploaded to: {imageUrl}");
 
-        // 2. Analyze with AI
+        // analyze with ai
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
         var imageBytes = ms.ToArray();
 
         var product = await enrichmentService.AnalyzeImageAsync(imageBytes, imageUrl);
         
-        logger.LogInformation("AI Analysis successful for {ProductName}", product.ProductName);
+        Console.WriteLine($"AI Analysis successful for {product.ProductName}");
 
-        // 3. Save to Database
+        // save to database
         dbContext.FashionProducts.Add(product);
         await dbContext.SaveChangesAsync();
 

@@ -16,12 +16,12 @@ public class RecommendationAnalysis
 
 public class PersonalizedRecommendationService(
     AppDbContext dbContext,
-    Kernel kernel,
-    ILogger<PersonalizedRecommendationService> logger)
+    Kernel kernel
+    )
 {
     public async Task<List<FashionProduct>> GetPersonalizedRecommendationsAsync(string userId = "global-user")
     {
-        // 1. Fetch user's purchase history (with product details)
+        // fetch users purchase history
         var purchases = await dbContext.Purchases
             .Include(p => p.Product)
             .Where(p => p.UserId == userId)
@@ -31,17 +31,17 @@ public class PersonalizedRecommendationService(
 
         if (purchases.Count == 0)
         {
-            logger.LogInformation("No purchase history found for user {UserId}. Returning random trending items.", userId);
+            Console.WriteLine($"No purchase history found for user {userId}. Returning random trending items.");
             return await dbContext.FashionProducts.OrderBy(r => EF.Functions.Random()).Take(5).ToListAsync();
         }
 
-        // 2. Use AI to analyze their "Style DNA"
+        // use ai to analyze their style
         var historySummary = string.Join("\n", purchases.Select(p => $"- {p.Product?.ProductName} ({p.Product?.Category}): {p.Product?.Description}"));
         
         var analysis = await AnalyzeStyleDnaAsync(historySummary);
-        logger.LogInformation("Style DNA Analysis Complete: {Summary}", analysis.StyleSummary);
+        Console.WriteLine($"Style DNA Analysis Complete: {analysis.StyleSummary}");
 
-        // 3. Search for items that match the "Recommended Qualities"
+        // search for items that match the recommended style
         var inventory = await dbContext.FashionProducts
             .Where(p => !purchases.Select(pur => pur.ProductId).Contains(p.Id)) // Don't recommend what they already bought
             .ToListAsync();
@@ -56,7 +56,6 @@ public class PersonalizedRecommendationService(
                     if (pText.Contains(quality.ToLower())) score += 5.0;
                 }
                 
-                // Bonus for items that are in the same general aesthetic but different category
                 return new { Product = p, Score = score };
             })
             .Where(x => x.Score > 0)
@@ -66,7 +65,7 @@ public class PersonalizedRecommendationService(
             .Take(8)
             .ToList();
 
-        // Fallback if AI selection is too narrow
+        // just give random items if ai selection is too little
         if (recommendations.Count < 3)
         {
             var fallback = await dbContext.FashionProducts
@@ -110,7 +109,6 @@ public class PersonalizedRecommendationService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error analyzing style DNA");
             return new RecommendationAnalysis();
         }
     }

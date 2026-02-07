@@ -7,7 +7,7 @@ namespace ThryftAiServer.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PurchaseController(AppDbContext dbContext, ILogger<PurchaseController> logger) : ControllerBase
+public class PurchaseController(AppDbContext dbContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<Purchase>> RecordPurchase([FromQuery] int productId, [FromQuery] string userId = "global-user")
@@ -15,7 +15,8 @@ public class PurchaseController(AppDbContext dbContext, ILogger<PurchaseControll
         try
         {
             var product = await dbContext.FashionProducts.FindAsync(productId);
-            if (product == null) return NotFound("Product not found");
+            if (product == null) 
+                return NotFound("Product not found");
 
             var purchase = new Purchase
             {
@@ -27,25 +28,13 @@ public class PurchaseController(AppDbContext dbContext, ILogger<PurchaseControll
             dbContext.Purchases.Add(purchase);
             await dbContext.SaveChangesAsync();
 
-            logger.LogInformation("Recorded purchase: User {UserId} bought {ProductName}", userId, product.ProductName);
+            Console.WriteLine($"Recorded purchase: User {userId} bought {product.ProductName}");
             return Ok(purchase);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error recording purchase");
+            Console.WriteLine($"Error recording purchase: {ex.Message}");
             return StatusCode(500, "Internal server error");
         }
-    }
-
-    [HttpGet("history")]
-    public async Task<ActionResult<IEnumerable<Purchase>>> GetPurchaseHistory([FromQuery] string userId = "global-user")
-    {
-        var history = await dbContext.Purchases
-            .Include(p => p.Product)
-            .Where(p => p.UserId == userId)
-            .OrderByDescending(p => p.PurchaseDate)
-            .ToListAsync();
-
-        return Ok(history);
     }
 }

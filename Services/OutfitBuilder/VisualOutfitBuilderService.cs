@@ -8,24 +8,23 @@ namespace ThryftAiServer.Services.OutfitBuilder;
 
 public class VisualOutfitBuilderService(
     Kernel kernel,
-    OutfitBuilderService outfitBuilderService,
-    ILogger<VisualOutfitBuilderService> logger)
+    OutfitBuilderService outfitBuilderService
+    )
 {
     public class UserVisualItem
     {
         public byte[] ImageBytes { get; set; } = null!;
-        public string Category { get; set; } = string.Empty; // e.g., Topwear, Footwear
+        public string Category { get; set; } = string.Empty; //  Topwear, Footwear, etc
     }
 
     public async Task<List<FashionProduct>> CompleteOutfitFromImagesAsync(List<UserVisualItem> userItems, string? gender = null)
     {
         var categoriesUsed = userItems.Select(i => i.Category).ToList();
-        logger.LogInformation("Analyzing {Count} user items ({Categories}) to complete the outfit...", userItems.Count, string.Join(", ", categoriesUsed));
 
         var allCategories = new List<string> { "Topwear", "Bottomwear", "Footwear" };
         var missingCategories = allCategories.Where(cat => !categoriesUsed.Any(used => used.Contains(cat, StringComparison.OrdinalIgnoreCase))).ToList();
 
-        // 1. Analyze all uploaded images to extract a collective "vibe"
+        // analyze all uploaded images to extract a collective "vibe"
         var chatService = kernel.GetRequiredService<IChatCompletionService>();
         var chatHistory = new ChatHistory();
         
@@ -54,12 +53,10 @@ public class VisualOutfitBuilderService(
         var collectiveVibe = doc.RootElement.GetProperty("collective_vibe").GetString() ?? "";
         var stylingPrompt = doc.RootElement.GetProperty("styling_prompt").GetString() ?? "";
 
-        logger.LogInformation("Collective Vibe: {Vibe}. Missing piece search: {Prompt}", collectiveVibe, stylingPrompt);
-
-        // 2. Get recommendations for the full outfit based on the prompt
+        // get recommendations for the full outfit based on the prompt
         var recommendations = await outfitBuilderService.GetOutfitRecommendationsAsync(stylingPrompt, gender);
 
-        // 3. Filter out the categories the user already provided
+        // filter out the categories the user already provided
         return recommendations
             .Where(p => !categoriesUsed.Any(cat => 
                 string.Equals(p.MasterCategory, cat, StringComparison.OrdinalIgnoreCase) || 
