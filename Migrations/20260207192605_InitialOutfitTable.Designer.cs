@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ThryftAiServer.Data.App;
@@ -11,9 +12,11 @@ using ThryftAiServer.Data.App;
 namespace ThryftAiServer.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260207192605_InitialOutfitTable")]
+    partial class InitialOutfitTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,21 +24,6 @@ namespace ThryftAiServer.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("FashionProductOutfit", b =>
-                {
-                    b.Property<int>("ItemsId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("OutfitsId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("ItemsId", "OutfitsId");
-
-                    b.HasIndex("OutfitsId");
-
-                    b.ToTable("FashionProductOutfit");
-                });
 
             modelBuilder.Entity("ThryftAiServer.Models.FashionProduct", b =>
                 {
@@ -75,6 +63,9 @@ namespace ThryftAiServer.Migrations
                     b.Property<string>("Metadata")
                         .HasColumnType("text");
 
+                    b.Property<int?>("OutfitId")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("Price")
                         .HasColumnType("numeric");
 
@@ -95,6 +86,8 @@ namespace ThryftAiServer.Migrations
                     b.HasIndex("ExternalId")
                         .IsUnique();
 
+                    b.HasIndex("OutfitId");
+
                     b.ToTable("FashionProducts");
                 });
 
@@ -105,9 +98,6 @@ namespace ThryftAiServer.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -139,19 +129,11 @@ namespace ThryftAiServer.Migrations
                     b.ToTable("Purchases");
                 });
 
-            modelBuilder.Entity("FashionProductOutfit", b =>
+            modelBuilder.Entity("ThryftAiServer.Models.FashionProduct", b =>
                 {
-                    b.HasOne("ThryftAiServer.Models.FashionProduct", null)
-                        .WithMany()
-                        .HasForeignKey("ItemsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("ThryftAiServer.Models.Outfit", null)
-                        .WithMany()
-                        .HasForeignKey("OutfitsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .WithMany("Items")
+                        .HasForeignKey("OutfitId");
                 });
 
             modelBuilder.Entity("ThryftAiServer.Models.Purchase", b =>
@@ -163,6 +145,11 @@ namespace ThryftAiServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("ThryftAiServer.Models.Outfit", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
