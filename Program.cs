@@ -99,13 +99,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        Path.Combine(app.Environment.ContentRootPath, "Data", "App", "train", "image")),
-    RequestPath = "/images"
-});
-
 app.MapControllers();
 
 app.Run();
