@@ -10,26 +10,35 @@ namespace ThryftAiServer.Controllers;
 public class PurchaseController(AppDbContext dbContext) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<Purchase>> RecordPurchase([FromQuery] int productId, [FromQuery] string userId = "global-user")
+    public async Task<ActionResult<List<Purchase>>> RecordPurchase([FromQuery] List<int> productIds, [FromQuery] string userId = "global-user")
     {
         try
         {
-            var product = await dbContext.FashionProducts.FindAsync(productId);
-            if (product == null) 
-                return NotFound("Product not found");
+            var products = await dbContext.FashionProducts
+                .Where(p => productIds.Contains(p.Id))
+                .ToListAsync();
 
-            var purchase = new Purchase
+            if (products.Count == 0) 
             {
-                ProductId = productId,
+                return NotFound("None of the specified products were found.");
+            }
+
+            var purchases = products.Select(product => new Purchase
+            {
+                ProductId = product.Id,
                 UserId = userId,
                 PurchaseDate = DateTime.UtcNow
-            };
+            }).ToList();
 
-            dbContext.Purchases.Add(purchase);
+            dbContext.Purchases.AddRange(purchases);
             await dbContext.SaveChangesAsync();
 
-            Console.WriteLine($"Recorded purchase: User {userId} bought {product.ProductName}");
-            return Ok(purchase);
+            foreach (var product in products)
+            {
+                Console.WriteLine($"Recorded purchase: User {userId} bought {product.ProductName}");
+            }
+
+            return Ok(purchases);
         }
         catch (Exception ex)
         {
