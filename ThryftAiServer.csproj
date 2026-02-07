@@ -7,8 +7,29 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.70.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Data/App/test/**" />
+    <Compile Remove="Data/App/train/**" />
+    <Content Remove="Data/App/test/**" />
+    <Content Remove="Data/App/train/**" />
+    <Content Remove="Data/App/*.zip" />
+    <Content Remove="Data/App/*.csv" />
+    <None Remove="Data/App/test/**" />
+    <None Remove="Data/App/train/**" />
+    <None Remove="Data/App/*.zip" />
+    <None Remove="Data/App/*.csv" />
+  </ItemGroup>
 </Project>

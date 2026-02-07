@@ -4,3 +4,6 @@ GET {{ThryftAiServer_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+GET {{ThryftAiServer_HostAddress}}/api/OutfitBuilder?vibe=vintage
+Accept: application/json
